@@ -25,6 +25,7 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
             else
                 result.addSource(dbSource) { newData ->
                     newData ?: throw UnsupportedOperationException() //Todo 좀 더 코드를 이해한 뒤 수정
+//                    newData ?: return@addSource
                     result.setValue(Resource.success(newData))
                 }
         }
@@ -41,11 +42,16 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
             override fun onFailure(call: Call<RequestType>, t: Throwable) {
                 onFetchFailed()
                 result.removeSource(dbSource)
-                result.addSource(dbSource) { newData -> result.setValue(Resource.error(t.message ?: "", newData)) }//Todo 좀 더 코드를 이해한 뒤 수정
+                result.addSource(dbSource) { newData ->
+                    result.setValue(
+                            Resource.error(t.message ?: "Error", newData)//Todo 좀 더 코드를 이해한 뒤 수정
+                    )
+                }
             }
         })
     }
 
+    @SuppressLint("StaticFieldLeak")
     @MainThread private fun saveResultAndReInit(response: RequestType) =
             object : AsyncTask<Void, Void, Void>() {
 
@@ -56,7 +62,8 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
 
                 override fun onPostExecute(aVoid: Void) =
                         result.addSource(loadFromDb()) { newData ->
-                            newData ?: throw UnsupportedOperationException() //Todo 좀 더 코드를 이해한 뒤 수정
+                            newData ?:
+                                    return@addSource result.setValue(Resource.error("Error", newData)) //Todo 좀 더 코드를 이해한 뒤 수정
                             result.setValue(Resource.success(newData))
                         }
 
