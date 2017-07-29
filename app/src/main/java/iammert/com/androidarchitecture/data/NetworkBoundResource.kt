@@ -9,27 +9,10 @@ import android.support.annotation.WorkerThread
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.lang.UnsupportedOperationException
 
 abstract class NetworkBoundResource<ResultType, RequestType> {
 
     private val result = MediatorLiveData<Resource<ResultType>>()
-
-    init {
-        result.value = Resource.loading<ResultType>(null)
-        val dbSource = loadFromDb()
-        result.addSource(dbSource) { data ->
-            result.removeSource(dbSource)
-            if (shouldFetch(data))
-                fetchFromNetwork(dbSource)
-            else
-                result.addSource(dbSource) { newData ->
-                    newData ?: throw UnsupportedOperationException() //Todo 좀 더 코드를 이해한 뒤 수정
-//                    newData ?: return@addSource
-                    result.setValue(Resource.success(newData))
-                }
-        }
-    }
 
     private fun fetchFromNetwork(dbSource: LiveData<ResultType>) {
         result.addSource(dbSource) { newData -> result.setValue(Resource.loading(newData)) }
@@ -60,7 +43,7 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
                     return null
                 }
 
-                override fun onPostExecute(aVoid: Void) =
+                override fun onPostExecute(aVoid: Void?) =
                         result.addSource(loadFromDb()) { newData ->
                             newData ?:
                                     return@addSource result.setValue(Resource.error("Error", newData)) //Todo 좀 더 코드를 이해한 뒤 수정
@@ -80,5 +63,19 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
     @MainThread protected fun onFetchFailed() {
     }
 
-    val asLiveData: LiveData<Resource<ResultType>> get() = result
+    val asLiveData: LiveData<Resource<ResultType>> by lazy {
+        result.value = Resource.loading<ResultType>(null)
+        val dbSource = loadFromDb()
+        result.addSource(dbSource) { data ->
+            result.removeSource(dbSource)
+            if (shouldFetch(data))
+                fetchFromNetwork(dbSource)
+            else
+                result.addSource(dbSource) { newData ->
+                    newData ?: return@addSource
+                    result.setValue(Resource.success(newData))
+                }
+        }
+        result
+    }
 }
