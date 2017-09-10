@@ -19,7 +19,9 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
         createCall().enqueue(object : Callback<RequestType> {
             override fun onResponse(call: Call<RequestType>, response: Response<RequestType>) {
                 result.removeSource(dbSource)
-                saveResultAndReInit(response.body())
+                response.body()?.let {
+                    saveResultAndReInit(response.body())
+                } ?: onFailure(call, Exception())
             }
 
             override fun onFailure(call: Call<RequestType>, t: Throwable) {
@@ -27,7 +29,7 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
                 result.removeSource(dbSource)
                 result.addSource(dbSource) { newData ->
                     result.setValue(
-                            Resource.error(t.message ?: "Error", newData)//Todo 좀 더 코드를 이해한 뒤 수정
+                        Resource.error(t.message ?: "Error", newData)
                     )
                 }
             }
@@ -36,21 +38,21 @@ abstract class NetworkBoundResource<ResultType, RequestType> {
 
     @SuppressLint("StaticFieldLeak")
     @MainThread private fun saveResultAndReInit(response: RequestType) =
-            object : AsyncTask<Void, Void, Void>() {
+        object : AsyncTask<Void, Void, Void>() {
 
-                override fun doInBackground(vararg voids: Void): Void? {
-                    saveCallResult(response)
-                    return null
+            override fun doInBackground(vararg voids: Void): Void? {
+                saveCallResult(response)
+                return null
+            }
+
+            override fun onPostExecute(aVoid: Void?) =
+                result.addSource(loadFromDb()) { newData ->
+                    newData ?:
+                        return@addSource result.setValue(Resource.error("Error", newData))
+                    result.setValue(Resource.success(newData))
                 }
 
-                override fun onPostExecute(aVoid: Void?) =
-                        result.addSource(loadFromDb()) { newData ->
-                            newData ?:
-                                    return@addSource result.setValue(Resource.error("Error", newData)) //Todo 좀 더 코드를 이해한 뒤 수정
-                            result.setValue(Resource.success(newData))
-                        }
-
-            }.execute()
+        }.execute()
 
     @WorkerThread protected abstract fun saveCallResult(item: RequestType)
 

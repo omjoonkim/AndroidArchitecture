@@ -14,8 +14,7 @@ object ListBindingAdapter {
 
         val adapter = recyclerView.adapter ?: return
 
-        if (resource == null || resource.data == null)
-            return
+        if (resource?.data == null) return
 
         (adapter as? BaseAdapter<*, Any>)?.setData(resource.data as? List<Any> ?: emptyList())
     }
